@@ -1,0 +1,36 @@
+{
+  "name": "ask-starknet-bot-monorepo",
+  "version": "1.0.0",
+  "description": "Multi-platform bot monorepo for Telegram, X/Twitter, and Discord",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "telegram:dev": "pnpm --filter telegram-bot dev",
+    "twitter:dev": "pnpm --filter twitter-bot dev",
+    "discord:dev": "pnpm --filter discord-bot dev",
+    "shared:build": "pnpm --filter @ask-starknet/shared build",
+    "type-check": "pnpm -r type-check",
+    "lint": "pnpm -r lint"
+  },
+  "keywords": [
+    "bot",
+    "telegram",
+    "twitter",
+    "discord",
+    "langraph",
+    "mcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
+
