@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # Redis - Queue backend
+  redis:
+    image: redis:7-alpine
+    container_name: ask-starknet-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - bot-network
+
+  # Telegram Bot
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: packages/telegram-bot/Dockerfile
+    container_name: ask-starknet-telegram
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Bot Configuration
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # MCP Server Configuration
+      MCP_COMMAND: ${MCP_COMMAND:-npx}
+      MCP_ARGS: ${MCP_ARGS:--y,@modelcontextprotocol/server-everything}
+      MCP_ENV: ${MCP_ENV:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+    restart: unless-stopped
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Twitter/X Bot
+  twitter-bot:
+    build:
+      context: .
+      dockerfile: packages/twitter-bot/Dockerfile
+    container_name: ask-starknet-twitter
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Bot Configuration
+      TWITTER_API_KEY: ${TWITTER_API_KEY}
+      TWITTER_API_SECRET: ${TWITTER_API_SECRET}
+      TWITTER_ACCESS_TOKEN: ${TWITTER_ACCESS_TOKEN}
+      TWITTER_ACCESS_SECRET: ${TWITTER_ACCESS_SECRET}
+      TWITTER_BOT_USERNAME: ${TWITTER_BOT_USERNAME:-ask_starknet}
+      TWITTER_POLL_INTERVAL: ${TWITTER_POLL_INTERVAL:-60000}
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # MCP Server Configuration
+      MCP_COMMAND: ${MCP_COMMAND:-npx}
+      MCP_ARGS: ${MCP_ARGS:--y,@modelcontextprotocol/server-everything}
+      MCP_ENV: ${MCP_ENV:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+    restart: unless-stopped
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Discord Bot
+  discord-bot:
+    build:
+      context: .
+      dockerfile: packages/discord-bot/Dockerfile
+    container_name: ask-starknet-discord
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Bot Configuration
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # MCP Server Configuration
+      MCP_COMMAND: ${MCP_COMMAND:-npx}
+      MCP_ARGS: ${MCP_ARGS:--y,@modelcontextprotocol/server-everything}
+      MCP_ENV: ${MCP_ENV:-}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+    restart: unless-stopped
+    networks:
+      - bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  bot-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+
