@@ -56,11 +56,14 @@
  * Deploy Commands Script
  */
 
+/**
+ * Deploy Commands Script
+ */
+
 import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 
 async function collectCommands(): Promise<any[]> {
   const commandsPath = path.join(__dirname, '..', 'commands');
@@ -69,7 +72,7 @@ async function collectCommands(): Promise<any[]> {
 
   const payloads: any[] = [];
   for (const file of list) {
-    const mod = await import(pathToFileURL(path.join(commandsPath, file)).href);
+    const mod = await import(path.join(commandsPath, file));
     const cmd = mod.default || mod.command || mod[Object.keys(mod).find((k) => /Command$/i.test(k))!];
     if (!cmd?.data?.toJSON) continue;
     payloads.push(cmd.data.toJSON());
@@ -114,4 +117,3 @@ async function main() {
 main();
 
 export {};
-

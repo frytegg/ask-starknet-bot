@@ -37,7 +37,13 @@
  * Handles graceful shutdown.
  */
 
-import 'dotenv/config';
+/**
+ * Discord Bot - Main Entry Point
+ */
+import dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
 import {
   ActivityType,
   Client,
@@ -48,27 +54,80 @@ import { BotQueueManager, initLogger, getLogger } from '@ask-starknet/shared';
 import { loadCommands } from './utils/commandLoader';
 import { loadEvents } from './utils/eventLoader';
 
-// Extend the Discord client at runtime to carry shared services
 export type ClientWithServices = Client & {
   queueManager?: BotQueueManager;
   isShuttingDown?: boolean;
 };
 
+// ---- helpers ----
+const parseArgList = (s?: string): string[] => {
+  if (!s) return [];
+  // JSON array support
+  if (/^\s*\[/.test(s)) {
+    try { return JSON.parse(s); } catch { /* fall through */ }
+  }
+  // space-separated with optional quotes
+  const tokens = s.match(/(?:[^\s"]+|"[^"]*")+/g);
+  return (tokens || []).map(t => t.replace(/^"|"$/g, ''));
+};
+
+const parseEnvMap = (s?: string): Record<string, string> | undefined => {
+  if (!s) return undefined;
+  // JSON object support
+  if (/^\s*\{/.test(s)) {
+    try { return JSON.parse(s); } catch { /* fall through */ }
+  }
+  // KEY=VAL or KEY:VAL separated by commas or newlines
+  const out: Record<string, string> = {};
+  s.split(/[,\n]+/).map(x => x.trim()).filter(Boolean).forEach(pair => {
+    const m = pair.match(/^([^:=\s]+)\s*[:=]\s*(.+)$/);
+    if (m) out[m[1]] = m[2];
+  });
+  return Object.keys(out).length ? out : undefined;
+};
+
+type RedisConfig = {
+  host: string;
+  port: number;
+  password?: string;
+  username?: string;
+  tls?: Record<string, unknown>;
+};
+
+const buildRedisConfig = (): RedisConfig => {
+  const url = process.env.REDIS_URL;
+  if (url) {
+    const u = new URL(url);
+    const isTls = u.protocol === 'rediss:';
+    return {
+      host: u.hostname,
+      port: Number(u.port || 6379),
+      username: u.username || undefined,
+      password: u.password || undefined,
+      tls: isTls ? {} : undefined,
+    };
+  }
+  return {
+    host: process.env.REDIS_HOST || (process.env.DOCKER === 'true' ? 'redis' : '127.0.0.1'),
+    port: Number(process.env.REDIS_PORT || 6379),
+    password: process.env.REDIS_PASSWORD || undefined,
+    username: process.env.REDIS_USERNAME || undefined,
+    tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+  };
+};
+
+// ---- main ----
 async function main() {
-  // Load env and validate required values
   const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
   if (!DISCORD_TOKEN) {
-    // Use console in case logger is not ready yet
     // eslint-disable-next-line no-console
     console.error('Missing DISCORD_TOKEN in environment');
     process.exit(1);
   }
 
-  // Initialize logger early
   initLogger({ level: process.env.LOG_LEVEL || 'info' });
   const log = getLogger();
 
-  // Create Discord client with required intents
   const client: ClientWithServices = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -78,20 +137,37 @@ async function main() {
     partials: [Partials.Channel],
   });
 
-  // Initialize the queue manager and worker
+  // Queue + worker
   try {
-    // Pass env-based config. If your shared package exposes a schema, validate before this point.
-    // @ts-ignore - allow env-as-config until a typed config wrapper is added
-    const queueManager = new BotQueueManager(process.env as any);
-    // @ts-ignore - start worker with same config
-    await queueManager.startWorker(process.env as any);
+    const redis = buildRedisConfig();
+
+    const queueConfig: any = {
+      redis,
+      mcpServer: {
+        // If you have a binary, set MCP_COMMAND in .env
+        command: process.env.MCP_COMMAND || 'node',
+        // Your .env provides the MCP server address here. Accept JSON array or space-separated string.
+        // Examples:
+        // MCP_ARGS=["server.js","--addr","127.0.0.1:3000"]
+        // MCP_ARGS=server.js --addr 127.0.0.1:3000
+        args: parseArgList(process.env.MCP_ARGS),
+        // Your .env provides API KEY and ENV:production here.
+        // Examples:
+        // MCP_ENV={"API_KEY":"xxx","ENV":"production"}
+        // MCP_ENV=API_KEY=xxx,ENV=production
+        env: parseEnvMap(process.env.MCP_ENV),
+      },
+    };
+
+    const queueManager = new BotQueueManager(queueConfig);
+    await queueManager.startWorker(queueConfig);
     client.queueManager = queueManager;
     log.info('Queue worker started');
   } catch (err) {
     log.error({ err }, 'Failed to start queue worker');
   }
 
-  // Load commands and events (these utilities should scan folders and register handlers)
+  // Commands and events
   try {
     await loadCommands(client);
     log.info('Commands loaded');
@@ -115,17 +191,13 @@ async function main() {
     });
   });
 
-  // Process-level guards
   process.on('unhandledRejection', (reason) => {
     log.error({ reason }, 'Unhandled promise rejection');
   });
-
   process.on('uncaughtException', (error) => {
     log.error({ error }, 'Uncaught exception');
     void shutdown(client, 1);
   });
-
-  // Graceful shutdown hooks
   process.once('SIGINT', () => void shutdown(client, 0));
   process.once('SIGTERM', () => void shutdown(client, 0));
 
@@ -166,14 +238,9 @@ async function shutdown(client: ClientWithServices, code = 0) {
 }
 
 main().catch((err) => {
-  try {
-    getLogger().error({ err }, 'Startup failure');
-  } catch {
-    // eslint-disable-next-line no-console
-    console.error('Startup failure', err);
-  }
+  try { getLogger().error({ err }, 'Startup failure'); }
+  catch { /* eslint-disable-next-line no-console */ console.error('Startup failure', err); }
   process.exit(1);
 });
 
 export {};
-
