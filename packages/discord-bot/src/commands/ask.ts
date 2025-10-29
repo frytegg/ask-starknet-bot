@@ -52,7 +52,7 @@ import {
 import { getLogger, Platform } from '@ask-starknet/shared';
 import type { Command } from '../types';
 
-const log = getLogger('cmd:ask');
+const log = getLogger();
 
 function pickAnswer(result: any): string {
   return (

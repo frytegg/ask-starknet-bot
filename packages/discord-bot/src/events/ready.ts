@@ -43,7 +43,7 @@ import { Events, ActivityType, type Client } from 'discord.js';
 import { getLogger } from '@ask-starknet/shared';
 import type { Event } from '../types';
 
-const log = getLogger('evt:ready');
+const log = getLogger();
 
 export const readyEvent: Event = {
   name: Events.ClientReady,

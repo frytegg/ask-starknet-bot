@@ -53,7 +53,7 @@ import { pathToFileURL } from 'url';
 import { getLogger } from '@ask-starknet/shared';
 import type { Command } from '../types';
 
-const log = getLogger('util:commandLoader');
+const log = getLogger();
 
 export async function loadCommands(client: any) {
   if (!client.commands) client.commands = new Collection<string, Command>();

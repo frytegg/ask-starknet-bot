@@ -58,7 +58,7 @@ import { Events, type Interaction } from 'discord.js';
 import { getLogger } from '@ask-starknet/shared';
 import type { Event } from '../types';
 
-const log = getLogger('evt:interactionCreate');
+const log = getLogger();
 
 export const interactionCreateEvent: Event = {
   name: Events.InteractionCreate,

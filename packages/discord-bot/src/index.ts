@@ -50,7 +50,7 @@ import { loadEvents } from './utils/eventLoader';
 
 // Extend the Discord client at runtime to carry shared services
 export type ClientWithServices = Client & {
-  queueManager?: BotQueueManager<any>;
+  queueManager?: BotQueueManager;
   isShuttingDown?: boolean;
 };
 
@@ -66,7 +66,7 @@ async function main() {
 
   // Initialize logger early
   initLogger({ level: process.env.LOG_LEVEL || 'info' });
-  const log = getLogger('bot:index');
+  const log = getLogger();
 
   // Create Discord client with required intents
   const client: ClientWithServices = new Client({
@@ -139,7 +139,7 @@ async function main() {
 }
 
 async function shutdown(client: ClientWithServices, code = 0) {
-  const log = getLogger('bot:shutdown');
+  const log = getLogger();
   if (client.isShuttingDown) return;
   client.isShuttingDown = true;
 
@@ -167,7 +167,7 @@ async function shutdown(client: ClientWithServices, code = 0) {
 
 main().catch((err) => {
   try {
-    getLogger('bot:index').error({ err }, 'Startup failure');
+    getLogger().error({ err }, 'Startup failure');
   } catch {
     // eslint-disable-next-line no-console
     console.error('Startup failure', err);

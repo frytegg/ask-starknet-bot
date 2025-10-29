@@ -52,11 +52,11 @@
  * Message Create Event Handler (Optional)
  */
 
-import { Events, type Message, EmbedBuilder } from 'discord.js';
+import { Events, type Message, EmbedBuilder, type TextBasedChannel } from 'discord.js';
 import { getLogger, Platform } from '@ask-starknet/shared';
 import type { Event } from '../types';
 
-const log = getLogger('evt:messageCreate');
+const log = getLogger();
 
 function pickAnswer(result: any): string {
   return (
@@ -105,9 +105,15 @@ export const messageCreateEvent: Event = {
       }
 
       // 4) Add to queue and respond
-      await message.channel.sendTyping();
+      const channel = message.channel as TextBasedChannel | any;
+      if (typeof (channel as any).send !== 'function') {
+      await message.reply('I can only respond in text channels.');
+      return;
+      }
+
+      await channel.sendTyping();
       const typer = setInterval(() => {
-        void message.channel.sendTyping().catch(() => {});
+      void channel.sendTyping().catch(() => {});
       }, 8000);
 
       try {
@@ -134,7 +140,7 @@ export const messageCreateEvent: Event = {
         if (answer.length > 4096) {
           const remaining = answer.slice(4096);
           for (const chunk of toChunks(remaining)) {
-            await message.channel.send({ content: chunk });
+            await channel.send({ content: chunk });
           }
         }
       } finally {

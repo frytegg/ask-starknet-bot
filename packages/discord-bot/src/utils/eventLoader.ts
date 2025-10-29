@@ -50,7 +50,7 @@ import { pathToFileURL } from 'url';
 import { getLogger } from '@ask-starknet/shared';
 import type { Event } from '../types';
 
-const log = getLogger('util:eventLoader');
+const log = getLogger();
 
 export async function loadEvents(client: any) {
   const eventsPath = path.join(__dirname, '..', 'events');
