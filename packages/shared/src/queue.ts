@@ -46,7 +46,8 @@ export class BotQueueManager {
 
   private setupEventHandlers() {
     this.queueEvents.on('completed', ({ jobId, returnvalue }) => {
-      this.logger.info({ jobId, processingTime: returnvalue.processingTime }, 'Job completed');
+      const result = returnvalue as unknown as JobResult;
+      this.logger.info({ jobId, processingTime: result.processingTime }, 'Job completed');
     });
 
     this.queueEvents.on('failed', ({ jobId, failedReason }) => {
