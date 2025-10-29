@@ -1,4 +1,4 @@
-import { TwitterApi, TweetV2, ETwitterStreamEvent } from 'twitter-api-v2';
+import { TwitterApi, TweetV2 } from 'twitter-api-v2';
 import {
   BotQueueManager,
   initLogger,
@@ -21,7 +21,6 @@ class TwitterBot {
   private client: TwitterApi;
   private queueManager: BotQueueManager;
   private logger = getLogger();
-  private botUsername: string;
   private processedTweets: Map<string, ProcessedTweet> = new Map();
   private maxProcessedTweets = 1000;
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -32,7 +31,7 @@ class TwitterBot {
     appSecret: string,
     accessToken: string,
     accessSecret: string,
-    botUsername: string,
+    _botUsername: string, // Kept as parameter for API compatibility but not used internally
     queueManager: BotQueueManager
   ) {
     this.client = new TwitterApi({
@@ -41,7 +40,6 @@ class TwitterBot {
       accessToken,
       accessSecret,
     });
-    this.botUsername = botUsername;
     this.queueManager = queueManager;
   }
 

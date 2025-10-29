@@ -1,14 +1,7 @@
-import { StateGraph, END, START } from '@langchain/langgraph';
-import { MCPClient } from '@langchain/mcp-adapters';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { BotConfig } from './types';
 import { getLogger } from './logger';
-
-interface AgentState {
-  messages: string[];
-  response?: string;
-  error?: string;
-  context?: Record<string, unknown>;
-}
 
 interface ProcessContext {
   platform: string;
@@ -17,95 +10,22 @@ interface ProcessContext {
 }
 
 export class StarknetAgent {
-  private mcpClient: MCPClient;
-  private graph: ReturnType<typeof StateGraph<AgentState>>;
+  private mcpClient: Client;
   private logger = getLogger();
 
-  constructor(mcpClient: MCPClient) {
+  constructor(mcpClient: Client) {
     this.mcpClient = mcpClient;
-    this.graph = this.buildGraph();
-  }
-
-  private buildGraph() {
-    const workflow = new StateGraph<AgentState>({
-      channels: {
-        messages: {
-          value: (prev: string[], next: string[]) => [...prev, ...next],
-          default: () => [],
-        },
-        response: {
-          value: (prev?: string, next?: string) => next ?? prev,
-          default: () => undefined,
-        },
-        error: {
-          value: (prev?: string, next?: string) => next ?? prev,
-          default: () => undefined,
-        },
-        context: {
-          value: (prev?: Record<string, unknown>, next?: Record<string, unknown>) =>
-            next ? { ...prev, ...next } : prev,
-          default: () => ({}),
-        },
-      },
-    });
-
-    // Node: Process user query
-    workflow.addNode('process', async (state: AgentState) => {
-      const userMessage = state.messages[state.messages.length - 1];
-      
-      this.logger.info({ message: userMessage }, 'Processing user query');
-
-      try {
-        // Use MCP tools to process the request
-        const tools = await this.mcpClient.listTools();
-        this.logger.debug({ toolCount: tools.length }, 'Available MCP tools');
-
-        // For now, we'll call the MCP server with a simple prompt
-        // You can customize this based on your MCP server's capabilities
-        const response = await this.callMCPServer(userMessage);
-
-        return {
-          response,
-          messages: [],
-        };
-      } catch (error) {
-        this.logger.error({ error }, 'Error processing query');
-        return {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          messages: [],
-        };
-      }
-    });
-
-    // Node: Format response
-    workflow.addNode('format', async (state: AgentState) => {
-      if (state.error) {
-        return {
-          response: `I apologize, but I encountered an error: ${state.error}. Please try again later.`,
-        };
-      }
-
-      return {
-        response: state.response || 'I was unable to generate a response.',
-      };
-    });
-
-    // Define the flow
-    workflow.addEdge(START, 'process');
-    workflow.addEdge('process', 'format');
-    workflow.addEdge('format', END);
-
-    return workflow.compile();
   }
 
   private async callMCPServer(message: string): Promise<string> {
     try {
       // List available tools
-      const tools = await this.mcpClient.listTools();
+      const toolsResponse = await this.mcpClient.listTools();
+      const tools = toolsResponse.tools;
       
       if (tools.length === 0) {
         this.logger.warn('No tools available from MCP server');
-        return 'No tools available to process your request.';
+        return 'I apologize, but I don\'t have any tools available to process your request at the moment. Please try again later.';
       }
 
       // For demonstration, we'll use the first available tool
@@ -114,9 +34,21 @@ export class StarknetAgent {
       this.logger.info({ toolName: tool.name }, 'Using MCP tool');
 
       // Call the tool with the message
-      const result = await this.mcpClient.callTool(tool.name, {
-        query: message,
+      const result = await this.mcpClient.callTool({
+        name: tool.name,
+        arguments: {
+          query: message,
+        },
       });
+
+      // Extract text from MCP result
+      if (result.content && Array.isArray(result.content)) {
+        const textContent = result.content
+          .filter((item: any) => item.type === 'text')
+          .map((item: any) => item.text)
+          .join('\n');
+        return textContent || 'I received a response but it was empty.';
+      }
 
       return typeof result === 'string' ? result : JSON.stringify(result);
     } catch (error) {
@@ -131,20 +63,28 @@ export class StarknetAgent {
         platform: context.platform,
         userId: context.userId,
         userName: context.userName,
+        message,
       },
       'Processing request'
     );
 
     try {
-      const result = await this.graph.invoke({
-        messages: [message],
-        context,
-      });
+      // Simple direct processing without LangGraph
+      const response = await this.callMCPServer(message);
+      
+      this.logger.info(
+        {
+          platform: context.platform,
+          userId: context.userId,
+          responseLength: response.length,
+        },
+        'Request processed successfully'
+      );
 
-      return result.response || 'No response generated';
+      return response;
     } catch (error) {
-      this.logger.error({ error }, 'Error in agent processing');
-      throw error;
+      this.logger.error({ error, context }, 'Error in agent processing');
+      return 'I apologize, but I encountered an error processing your request. Please try again later.';
     }
   }
 }
@@ -158,14 +98,21 @@ export async function createAgent(config: BotConfig): Promise<StarknetAgent> {
   try {
     logger.info('Initializing MCP client');
 
-    // Initialize MCP client
-    const mcpClient = new MCPClient({
+    // Initialize MCP client with stdio transport
+    const transport = new StdioClientTransport({
       command: config.mcpServer.command,
       args: config.mcpServer.args,
       env: config.mcpServer.env,
     });
 
-    await mcpClient.connect();
+    const mcpClient = new Client({
+      name: 'ask-starknet-bot',
+      version: '1.0.0',
+    }, {
+      capabilities: {},
+    });
+
+    await mcpClient.connect(transport);
     logger.info('MCP client connected');
 
     const agent = new StarknetAgent(mcpClient);
