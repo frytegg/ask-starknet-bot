@@ -49,5 +49,59 @@
  */
 
 // TODO: Implement interactionCreate event handler
-export {};
+
+/**
+ * Interaction Create Event Handler
+ */
+
+import { Events, type Interaction } from 'discord.js';
+import { getLogger } from '@ask-starknet/shared';
+import type { Event } from '../types';
+
+const log = getLogger('evt:interactionCreate');
+
+export const interactionCreateEvent: Event = {
+  name: Events.InteractionCreate,
+
+  async execute(interaction: Interaction) {
+    if (!interaction.isChatInputCommand()) return;
+
+    const started = Date.now();
+    const client: any = interaction.client as any;
+    const commands = client.commands as Map<string, any> | undefined;
+    const command = commands?.get(interaction.commandName);
+
+    if (!command) {
+      log.warn({ cmd: interaction.commandName }, 'Command not found');
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'Unknown command.', ephemeral: true });
+      }
+      return;
+    }
+
+    try {
+      await command.execute(interaction);
+      log.info(
+        {
+          cmd: interaction.commandName,
+          user: interaction.user?.id,
+          guild: interaction.guildId,
+          channel: interaction.channelId,
+          latencyMs: Date.now() - started,
+        },
+        'Command executed',
+      );
+    } catch (error: any) {
+      log.error({ error, cmd: interaction.commandName }, 'Command error');
+      const msg = 'There was an error executing this command.';
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: msg, ephemeral: true });
+      } else {
+        await interaction.reply({ content: msg, ephemeral: true });
+      }
+    }
+  },
+};
+
+export default interactionCreateEvent;
 

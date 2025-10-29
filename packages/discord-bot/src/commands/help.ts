@@ -42,5 +42,55 @@
  */
 
 // TODO: Implement help command
-export {};
+/**
+ * Help Command
+ *
+ * Slash command: /help
+ */
+
+import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  EmbedBuilder,
+} from 'discord.js';
+import type { Command } from '../types';
+
+export const helpCommand: Command = {
+  data: new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Get help with the bot'),
+
+  async execute(interaction: ChatInputCommandInteraction) {
+    const embed = new EmbedBuilder()
+      .setTitle('Ask Starknet Bot - Help')
+      .setDescription('Answers questions about the Starknet ecosystem.')
+      .addFields(
+        {
+          name: 'Commands',
+          value: [
+            '`/ask <question>` - ask a question',
+            '`/status` - check bot and queue status',
+            '`/help` - this help message',
+          ].join('\n'),
+        },
+        {
+          name: 'Examples',
+          value: [
+            '`/ask What is Starknet?`',
+            '`/ask Tell me about Cairo`',
+          ].join('\n'),
+        },
+        {
+          name: 'Support',
+          value: 'Use `/status` for uptime and queue. Contact server moderators if issues persist.',
+        },
+      )
+      .setColor('#5865F2');
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  },
+};
+
+export default helpCommand;
+
 

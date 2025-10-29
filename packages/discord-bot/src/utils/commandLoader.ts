@@ -42,5 +42,63 @@
  */
 
 // TODO: Implement command loader
-export {};
+/**
+ * Command Loader Utility
+ */
+
+import { Collection } from 'discord.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { pathToFileURL } from 'url';
+import { getLogger } from '@ask-starknet/shared';
+import type { Command } from '../types';
+
+const log = getLogger('util:commandLoader');
+
+export async function loadCommands(client: any) {
+  if (!client.commands) client.commands = new Collection<string, Command>();
+  const commandsPath = path.join(__dirname, '..', 'commands');
+
+  let files: string[] = [];
+  try {
+    files = await fs.readdir(commandsPath);
+  } catch (err) {
+    log.error({ err, commandsPath }, 'Failed to read commands directory');
+    return;
+  }
+
+  const commandFiles = files.filter(
+    (f) =>
+      /\.(ts|js|mjs|cjs)$/.test(f) &&
+      !f.endsWith('.d.ts') &&
+      !f.endsWith('.map') &&
+      !f.startsWith('_'),
+  );
+
+  for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    try {
+      const mod = await import(pathToFileURL(filePath).href);
+      const candidate: Command | undefined =
+        (mod && (mod.default || mod.command || mod[Object.keys(mod).find((k) => /Command$/i.test(k))!])) as Command | undefined;
+
+      if (candidate && candidate.data && typeof candidate.execute === 'function') {
+        const name = candidate.data.name ?? candidate.data?.toJSON?.().name;
+        if (!name) {
+          log.warn({ file }, 'Command missing name');
+          continue;
+        }
+        client.commands.set(name, candidate);
+        log.info({ name, file }, 'Loaded command');
+      } else {
+        log.warn({ file }, 'Invalid command module');
+      }
+    } catch (err) {
+      log.error({ err, file }, 'Failed to load command');
+    }
+  }
+}
+
+export default loadCommands;
+
 

@@ -35,5 +35,36 @@
  */
 
 // TODO: Implement ready event handler
-export {};
+/**
+ * Ready Event Handler
+ */
+
+import { Events, ActivityType, type Client } from 'discord.js';
+import { getLogger } from '@ask-starknet/shared';
+import type { Event } from '../types';
+
+const log = getLogger('evt:ready');
+
+export const readyEvent: Event = {
+  name: Events.ClientReady,
+  once: true,
+
+  async execute(client: Client) {
+    const user = client.user;
+    if (!user) return;
+
+    log.info({ tag: user.tag, id: user.id }, 'Bot ready');
+
+    user.setPresence({
+      activities: [{ name: '/ask about Starknet', type: ActivityType.Listening }],
+      status: 'online',
+    });
+
+    const guildCount = client.guilds.cache.size;
+    log.info({ guildCount }, 'Serving guilds');
+  },
+};
+
+export default readyEvent;
+
 

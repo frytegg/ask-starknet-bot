@@ -52,5 +52,66 @@
  */
 
 // TODO: Implement deploy-commands script
+/**
+ * Deploy Commands Script
+ */
+
+import 'dotenv/config';
+import { REST, Routes } from 'discord.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { pathToFileURL } from 'url';
+
+async function collectCommands(): Promise<any[]> {
+  const commandsPath = path.join(__dirname, '..', 'commands');
+  const files = await fs.readdir(commandsPath);
+  const list = files.filter((f) => /\.(js|mjs|cjs)$/.test(f) && !f.endsWith('.map'));
+
+  const payloads: any[] = [];
+  for (const file of list) {
+    const mod = await import(pathToFileURL(path.join(commandsPath, file)).href);
+    const cmd = mod.default || mod.command || mod[Object.keys(mod).find((k) => /Command$/i.test(k))!];
+    if (!cmd?.data?.toJSON) continue;
+    payloads.push(cmd.data.toJSON());
+  }
+  return payloads;
+}
+
+async function main() {
+  const token = process.env.DISCORD_TOKEN;
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  const guildId = process.env.DISCORD_GUILD_ID; // optional
+
+  if (!token || !clientId) {
+    // eslint-disable-next-line no-console
+    console.error('DISCORD_TOKEN and DISCORD_CLIENT_ID are required');
+    process.exit(1);
+  }
+
+  const rest = new REST({ version: '10' }).setToken(token);
+
+  const body = await collectCommands();
+  // eslint-disable-next-line no-console
+  console.log(`Registering ${body.length} command(s)`);
+
+  try {
+    if (guildId) {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
+      // eslint-disable-next-line no-console
+      console.log('Guild commands registered');
+    } else {
+      await rest.put(Routes.applicationCommands(clientId), { body });
+      // eslint-disable-next-line no-console
+      console.log('Global commands registered');
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Error registering commands', err);
+    process.exit(1);
+  }
+}
+
+main();
+
 export {};
 
