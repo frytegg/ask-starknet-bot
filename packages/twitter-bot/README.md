@@ -87,6 +87,21 @@ Users can mention your bot on Twitter:
 
 The bot will automatically reply with relevant information.
 
+## Optional Source Context
+
+For questions about what is happening on Starknet right now, keep source
+collection and approval outside the Twitter bot. A safe pattern is:
+
+1. Collect public X/Twitter posts with your existing research workflow.
+2. Review and approve the source packet before it reaches the answer agent.
+3. Pass the approved source packet to the MCP server configured by `MCP_COMMAND`
+   and `MCP_ARGS`.
+4. Let this bot publish only the normal reply to the original mention.
+
+TweetClaw/OpenClaw workflows can fit this pattern as a reviewed source packet
+producer for public X/Twitter evidence. Do not let the bot install plugins,
+change MCP tools, widen tool access, or publish standalone posts automatically.
+
 ## Rate Limiting
 
 The bot implements several rate limiting strategies:
@@ -134,4 +149,3 @@ Request flow:
 ### Threading issues
 - Twitter has limits on thread length
 - Bot automatically splits long responses
-
